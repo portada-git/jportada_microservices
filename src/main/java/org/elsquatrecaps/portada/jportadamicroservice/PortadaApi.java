@@ -4,15 +4,25 @@
  */
 package org.elsquatrecaps.portada.jportadamicroservice;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import lombok.Data;
+import org.elsquatrecaps.portada.jportadamicroservice.decrypt.DecryptAes;
 import org.elsquatrecaps.portada.jportadamicroservice.files.TempFileInputStream;
 import org.elsquatrecaps.portada.portadaimagetools.FixBackTransparencyTool;
 import org.elsquatrecaps.portada.portadaocr.ProcessOcrDocument;
@@ -83,8 +93,9 @@ public class PortadaApi {
         String ret;
         FileAndExtension tmpImage  = saveTmpImage(file);
         ProcessOcrDocument processor = new ProcessOcrDocument();
-        try {
-            processor.init(new File("/etc/.document_ai/").getCanonicalFile().getAbsolutePath(), team);
+        try {            
+            processor.init(new File("/etc/.jportada_microservices/").getCanonicalFile().getAbsolutePath(), team);
+            processor.setCredentialsStream(decryptFileToStream(processor.getCredentialsPath()));
             processor.setFilePath(tmpImage.getFile().getAbsolutePath());
             processor.process();
             ret = processor.getText();
@@ -96,6 +107,19 @@ public class PortadaApi {
         return ret;        
     }
 
+    private InputStream decryptFileToStream(String path){
+        DecryptAes decryptAes;
+        String retDec;
+        InputStream ret;
+        try {
+            decryptAes = new DecryptAes();
+            retDec = decryptAes.decrypt(path, System.getenv("IATNEMUCOD_TERCES"));
+            ret = new ByteArrayInputStream(retDec.getBytes());
+        } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException | IllegalBlockSizeException | BadPaddingException ex) {
+            throw new RuntimeException(ex);
+        }
+        return ret;
+    }
 
     private FileAndExtension saveTmpImage(MultipartFile file){
             File tmpImagePath=null;
