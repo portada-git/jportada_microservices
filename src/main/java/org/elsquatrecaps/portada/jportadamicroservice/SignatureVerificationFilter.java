@@ -29,7 +29,7 @@ import java.util.Properties;
 @Component
 public class SignatureVerificationFilter implements Filter {
     private static final SecureRandom secureRandom = new SecureRandom();  // Generador aleatori segur
-    private HashMap<String, ArrayList<PublicKey>> publicKeys = new HashMap<>();
+    private transient HashMap<String, ArrayList<PublicKey>> publicKeys = new HashMap<>();
 
     @Override
     public void init(FilterConfig filterConfig) throws ServletException {
