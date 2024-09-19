@@ -53,15 +53,29 @@
                 <version>[1.0-SNAPSHOT,)</version>
             </dependency>
             <dependency>
-                <groupId>org.elsquatrecaps.portada.portadaocr</groupId>
-                 <artifactId>jportada-ocr</artifactId>
-                <version>[1.0-SNAPSHOT,)</version>
-            </dependency>
-            <dependency>
                 <groupId>org.bouncycastle</groupId>
                 <artifactId>bcprov-jdk15on</artifactId>
                 <version>1.70</version>
             </dependency>
+            <dependency>
+                <groupId>org.elsquatrecaps.portada.portadaocr</groupId>
+                <artifactId>jportada_ocr</artifactId>
+                <version>[1.0-SNAPSHOT,)</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-text</artifactId>
+                <version>1.12.0</version>
+            </dependency>
+            <dependency>
+                <groupId>com.sun.mail</groupId>
+                <artifactId>javax.mail</artifactId>
+                <version>1.6.2</version>
+            </dependency>
+            <!--dependency>
+                <groupId>jakarta.mail</groupId>
+                <artifactId>jakarta.mail-api</artifactId>
+            </dependency-->            
     </dependencies>
 
     <build>
