@@ -1,6 +1,8 @@
 package org.elsquatrecaps.portada.jportadamicroservice;
 
 import com.google.cloud.documentai.v1beta3.Document;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -60,13 +62,72 @@ public class PortadaApi {
         return new Message("Portada API is working from JVM");
     }
     
+    @PostMapping(path="/pr/acceptKey")
+    public String acceptKey(@RequestParam("team") String team, @RequestParam("pkname") String pkname,  @RequestParam("u") String adminuser, @RequestParam("p") String adminpas){
+        String ret;
+        JsonObject users = JsonParser.parseString(decryptFileToString("/etc/.portada_microservices/gmail/portada.project.json", "ADATROP_TERCES")).getAsJsonObject();
+        if(users.get(adminuser).getAsJsonObject().get("rol").getAsString().equals("admin") && users.get(adminuser).getAsJsonObject().get("pas").getAsString().equals(adminpas)){
+            String verifiedKeyFileName = String.format("/etc/.portada_microservices/%s/verifiedAccessKeys/%s", team, pkname);
+            String acceptedKeyFileName = String.format("/etc/.portada_microservices/%s/approvedAccessKeys/%s", team, pkname);
+            File verifiedKeyFile = new File(verifiedKeyFileName);
+            File acceptedKeyFile = new File(acceptedKeyFileName);
+            if(verifiedKeyFile.getParentFile().exists()){
+                if(!acceptedKeyFile.getParentFile().exists()){
+                    acceptedKeyFile.getParentFile().mkdirs();
+                }      
+                boolean res = verifiedKeyFile.renameTo(acceptedKeyFile);
+                if(res){
+                    //ok
+                    ret = "{\"statusCode\":0, \"message\":\"The access key was approved. A new user has access to PAPI\"}";
+                }else{
+                    //error no s'ha pogut renombrar la clau verificada
+                    ret = "{\"statusCode\":1, \"message\":\"ERROR: There was some problem renaming the access key.\"}";
+                }
+            }else{
+                //error no existeix la clau verificada
+                ret = "{\"statusCode\":2, \"message\":\"ERROR: The access key to be approved doesn't exist.\"}";
+            }                  
+        }else{
+            //error usuari incorrecte o sense privilegis
+            ret = "{\"statusCode\":3, \"message\":\"ERROR: User or password incorrect or user without privileges.\"}";
+        }
+        return ret;
+    }
+    
+    @PostMapping(path="/pr/depeteKey")
+    public String deleteKey(@RequestParam("team") String team, @RequestParam("pkname") String pkname,  @RequestParam("u") String adminuser, @RequestParam("p") String adminpas){
+        String ret;
+        JsonObject users = JsonParser.parseString(decryptFileToString("/etc/.portada_microservices/gmail/portada.project.json", "ADATROP_TERCES")).getAsJsonObject();
+        if(users.get(adminuser).getAsJsonObject().get("rol").getAsString().equals("admin") && users.get(adminuser).getAsJsonObject().get("pas").getAsString().equals(adminpas)){
+            String verifiedKeyFileName = String.format("/etc/.portada_microservices/%s/verifiedAccessKeys/%s", team, pkname);
+            File verifiedKeyFile = new File(verifiedKeyFileName);
+            if(verifiedKeyFile.getParentFile().exists()){
+                boolean res = verifiedKeyFile.delete();
+                if(res){
+                    //ok
+                    ret = "{\"statusCode\":0, \"message\":\"The access key was deleted.\"}";
+                }else{
+                    //error no s'ha pogut eleminar la clau verificada
+                    ret = "{\"statusCode\":1, \"message\":\"ERROR: There was some problem deleting the access key. Please check the system files\"}";
+                }
+            }else{
+                //error no existeix la clau verificada
+                ret = "{\"statusCode\":2, \"message\":\"ERROR: The access key to be deleted doesn't exist.\"}";
+            }                  
+        }else{
+            //error usuari incorrecte o sense privilegis
+            ret = "{\"statusCode\":3, \"message\":\"ERROR: User or password incorrect or user without privileges.\"}";
+        }
+        return ret;
+    }
+    
     @PostMapping( path = "/verifyRequestedAcessPermission")
     public String verifyRequestedAccessPermission(@RequestParam("team") String team, @RequestParam("email") String email, @RequestParam("code") String code){
         String ret=null;
         String emailForPath = email.replaceAll("@", "__AT_SIGN__");
         String pathbase = String.format("/etc/.portada_microservices/%s/requestedAccessKeys/%s", team, emailForPath);
         String path = String.format("%s/%s/", pathbase, code);
-        deleteOldAccessRequest(pathbase);            
+        deleteOldAccessRequest("/etc/.portada_microservices/", "requestedAccessKeys");            
         Path p = Paths.get(path);
         boolean existKeyPath =true;
         if(Files.exists(p)){
@@ -85,13 +146,16 @@ public class PortadaApi {
                     boolean res = keyfile.renameTo(verifiedKeyFile);
                     if (res){
                         keyfile.getParentFile().delete();
+                        if(keyfile.getParentFile().getParentFile().list().length==0){
+                            keyfile.getParentFile().getParentFile().delete();
+                        }
                         //enviar correu de confirmació a l'admin
                         if(mailSender==null){
                             mailSender=new MailSender(decryptFileToString("/etc/.portada_microservices/gmail/portada.project.json", "LIAMG_TERCES"));
 //                            mailSender = new MailSender(Files.readString(Paths.get("/etc/.jportada_microservices/gmail/portada.project.json")));
                         }
                         try {
-                            mailSender.sendMessageToAdmin("Access to PAPI request", String.format("The file %s belonging to team %s was verified . Accept it o delete it.", verifiedKeyFileName, team));
+                            mailSender.sendMessageToAdmin("Access to PAPI request", String.format("The file %s belonging to team %s was verified . Accept it o delete it. Data is:\n\n-k %s -tm %s", verifiedKeyFileName, team, verifiedKeyFileName, team));
                         } catch (MessagingException ex) {
                             //Proces correcte a excepciço de l'avís a l'adminimitrador. Cal avisar manualment a l'administrador.
                             ret = "{\"statusCode\":2, \"message\":\"Verification was successful, but there was an error trying to notify the administrator. You do not need to re-apply for access, but please email the administrator directly so that your permission can take effect.\"}";
@@ -121,7 +185,10 @@ public class PortadaApi {
     }
 
     @PostMapping( path = "/requestAccessPermission")
-    public String requestAccessPermission(@RequestParam("team") String team, @RequestParam("email") String email, @RequestParam("pk") MultipartFile publicKey){
+    public String requestAccessPermission(@RequestParam("team") String team, 
+                                            @RequestParam("email") String email, 
+                                            @RequestParam("pk") MultipartFile publicKey,
+                                            @RequestParam(defaultValue="", name="oldKeyName", required=false) String oldKeyName){
         String ret=null;
         //String randomName = RandomStringGenerator.builder().get().generate(30);
         String emailForPath = email.replaceAll("@", "__AT_SIGN__");
@@ -129,8 +196,19 @@ public class PortadaApi {
         String pathbase = String.format("/etc/.portada_microservices/%s/requestedAccessKeys/%s", team, emailForPath);        
         String filename = String.format("%s/%s/%s", pathbase, randomCode, /*randomName,*/ publicKey.getOriginalFilename());
         try {
+            if(oldKeyName!=null && !oldKeyName.trim().isEmpty()){
+                //delete in verified or approved
+                File keyTodelete = new File(String.format("/etc/.portada_microservices/%s/verifiedAccessKeys/%s", team, oldKeyName));
+                if(keyTodelete.exists()){
+                    keyTodelete.delete();
+                }
+                keyTodelete = new File(String.format("/etc/.portada_microservices/%s/approvedAccessKeys/%s", team, oldKeyName));
+                if(keyTodelete.exists()){
+                    keyTodelete.delete();
+                }
+            }
             //eliminar fitxers antics
-            deleteOldAccessRequest(pathbase);            
+            deleteOldAccessRequest("/etc/.portada_microservices/", "requestedAccessKeys");            
             //guardar a clau
             saveFile(publicKey, filename);
             //enviar el codi per email
@@ -297,6 +375,20 @@ public class PortadaApi {
         return ret;
     }
     
+    private static boolean deleteOldAccessRequest(String path, String requestedAccessKeysDir){
+        boolean ret = true;
+        File base = new File(path);
+        if(base.exists()){
+            for(File f: base.listFiles()){
+                File dirToDelete = new File(f, requestedAccessKeysDir);
+                if(dirToDelete.exists()){
+                    ret = ret && deleteOldAccessRequest(dirToDelete.getAbsolutePath());
+                }
+            }
+        }
+        return ret;
+    }
+    
     private static boolean deleteOldAccessRequest(String path){
         boolean ret = true;
         try {
@@ -319,7 +411,7 @@ public class PortadaApi {
                         errorFiles.add(t.toString());
                     }
                 });
-            ret = errorFiles.isEmpty();
+                ret = errorFiles.isEmpty();
             }
         } catch (IOException ex) {
             Logger.getLogger(PortadaApi.class.getName()).log(Level.SEVERE, null, ex);
