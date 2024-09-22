@@ -94,7 +94,7 @@ public class PortadaApi {
         return ret;
     }
     
-    @PostMapping(path="/pr/depeteKey")
+    @PostMapping(path="/pr/deleteKey")
     public String deleteKey(@RequestParam("team") String team, @RequestParam("pkname") String pkname,  @RequestParam("u") String adminuser, @RequestParam("p") String adminpas){
         String ret;
         JsonObject users = JsonParser.parseString(decryptFileToString("/etc/.portada_microservices/gmail/portada.project.json", "ADATROP_TERCES")).getAsJsonObject();
