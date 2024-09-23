@@ -305,12 +305,13 @@ public class PortadaApi {
     public String processOcr(@RequestParam("team") String team,  @RequestParam("image") MultipartFile file){
         String ret;
         FileAndExtension tmpImage  = saveTmpImage(file);
-        ProcessOcrDocument processor = new ProcessOcrDocument();
+//        ProcessOcrDocument processor = new ProcessOcrDocument();
         try {            
-            processor.init(new File("/etc/.portada_microservices/").getCanonicalFile().getAbsolutePath(), team);
-            processor.setCredentialsStream(decryptFileToStream(processor.getCredentialsPath()));
-            processor.setFilePath(tmpImage.getFile().getAbsolutePath());
-            processor.process();
+            ProcessOcrDocument processor = __runAndGetprocessOcr(team, tmpImage);
+//            processor.init(new File("/etc/.portada_microservices/").getCanonicalFile().getAbsolutePath(), team);
+//            processor.setCredentialsStream(decryptFileToStream(processor.getCredentialsPath()));
+//            processor.setFilePath(tmpImage.getFile().getAbsolutePath());
+//            processor.process();
             ret = processor.getText();
             tmpImage.getFile().delete();
         } catch (IOException ex) {
@@ -324,12 +325,13 @@ public class PortadaApi {
     public Document processOcrDocument(@RequestParam("team") String team,  @RequestParam("image") MultipartFile file){
         Document ret;
         FileAndExtension tmpImage  = saveTmpImage(file);
-        ProcessOcrDocument processor = new ProcessOcrDocument();
+//        ProcessOcrDocument processor = new ProcessOcrDocument();
         try {            
-            processor.init(new File("/etc/.portada_microservices/").getCanonicalFile().getAbsolutePath(), team);
-            processor.setCredentialsStream(decryptFileToStream(processor.getCredentialsPath()));
-            processor.setFilePath(tmpImage.getFile().getAbsolutePath());
-            processor.process();
+            ProcessOcrDocument processor = __runAndGetprocessOcr(team, tmpImage);
+//            processor.init(new File("/etc/.portada_microservices/").getCanonicalFile().getAbsolutePath(), team);
+//            processor.setCredentialsStream(decryptFileToStream(processor.getCredentialsPath()));
+//            processor.setFilePath(tmpImage.getFile().getAbsolutePath());
+//            processor.process();
             ret = processor.getResult();
             tmpImage.getFile().delete();
         } catch (IOException ex) {
@@ -339,16 +341,13 @@ public class PortadaApi {
         return ret;        
     }
     
-    @PostMapping( path = "/pr/ocrjson")
+    @PostMapping( path = "/pr/ocrJson")
     public String processOcrJson(@RequestParam("team") String team,  @RequestParam("image") MultipartFile file){
         String ret;
         FileAndExtension tmpImage  = saveTmpImage(file);
-        ProcessOcrDocument processor = new ProcessOcrDocument();
+//        ProcessOcrDocument processor = new ProcessOcrDocument();
         try {            
-            processor.init(new File("/etc/.portada_microservices/").getCanonicalFile().getAbsolutePath(), team);
-            processor.setCredentialsStream(decryptFileToStream(processor.getCredentialsPath()));
-            processor.setFilePath(tmpImage.getFile().getAbsolutePath());
-            processor.process();
+            ProcessOcrDocument processor = __runAndGetprocessOcr(team, tmpImage);
             ret = processor.getJsonString();
             tmpImage.getFile().delete();
         } catch (IOException ex) {
@@ -358,6 +357,14 @@ public class PortadaApi {
         return ret;        
     }
     
+    private ProcessOcrDocument __runAndGetprocessOcr(String team,  FileAndExtension tmpImage) throws IOException{
+        ProcessOcrDocument processor = new ProcessOcrDocument();
+        processor.init(new File("/etc/.portada_microservices/").getCanonicalFile().getAbsolutePath(), team);
+        processor.setCredentialsStream(decryptFileToStream(processor.getCredentialsPath()));
+        processor.setFilePath(tmpImage.getFile().getAbsolutePath());
+        processor.process();
+        return processor;        
+    }
 //    private static String decryptFileToString(String path){
 //        return decryptFileToString(path, "IATNEMUCOD_TERCES");
 //    }
@@ -410,7 +417,7 @@ public class PortadaApi {
             for(File f: base.listFiles()){
                 File dirToDelete = new File(f, requestedAccessKeysDir);
                 if(dirToDelete.exists()){
-                    ret = ret && deleteOldAccessRequest(dirToDelete.getAbsolutePath());
+                    ret = deleteOldAccessRequest(dirToDelete.getAbsolutePath()) && ret;
                 }
             }
         }
