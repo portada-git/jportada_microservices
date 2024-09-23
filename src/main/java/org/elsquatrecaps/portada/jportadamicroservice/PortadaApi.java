@@ -33,8 +33,9 @@ import javax.crypto.NoSuchPaddingException;
 import javax.mail.MessagingException;
 import javax.mail.internet.AddressException;
 import lombok.Data;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.text.RandomStringGenerator;
-import org.elsquatrecaps.portada.jportadamicroservice.decrypt.DecryptAes;
+import org.elsquatrecaps.portada.jportadamicroservice.cypher.EncryptDecryptAes;
 import org.elsquatrecaps.portada.jportadamicroservice.files.TempFileInputStream;
 import org.elsquatrecaps.portada.portadaimagetools.FixBackTransparencyTool;
 import org.elsquatrecaps.portada.portadaocr.ProcessOcrDocument;
@@ -65,8 +66,13 @@ public class PortadaApi {
     @PostMapping(path="/pr/acceptKey")
     public String acceptKey(@RequestParam("team") String team, @RequestParam("pkname") String pkname,  @RequestParam("u") String adminuser, @RequestParam("p") String adminpas){
         String ret;
-        JsonObject users = JsonParser.parseString(decryptFileToString("/etc/.portada_microservices/gmail/portada.project.json", "ADATROP_TERCES")).getAsJsonObject();
-        if(users.get(adminuser).getAsJsonObject().get("rol").getAsString().equals("admin") && users.get(adminuser).getAsJsonObject().get("pas").getAsString().equals(adminpas)){
+        JsonObject users = JsonParser.parseString(decryptFileToString("/etc/.portada_microservices/portada.users.json", "ADATROP_TERCES")).getAsJsonObject();
+        if(users.get(adminuser)!=null 
+                && users.get(adminuser).getAsJsonObject().get("role")!=null 
+                && users.get(adminuser).getAsJsonObject().get("role").getAsString().equals("admin") 
+                && users.get(adminuser).getAsJsonObject().get("pas")!=null
+                && (users.get(adminuser).getAsJsonObject().get("pas").getAsString().equals(adminpas)
+                        || DigestUtils.md5Hex(users.get(adminuser).getAsJsonObject().get("pas").getAsString()).toUpperCase().equals(adminpas))){                
             String verifiedKeyFileName = String.format("/etc/.portada_microservices/%s/verifiedAccessKeys/%s", team, pkname);
             String acceptedKeyFileName = String.format("/etc/.portada_microservices/%s/approvedAccessKeys/%s", team, pkname);
             File verifiedKeyFile = new File(verifiedKeyFileName);
@@ -78,6 +84,10 @@ public class PortadaApi {
                 boolean res = verifiedKeyFile.renameTo(acceptedKeyFile);
                 if(res){
                     //ok
+                    String email = pkname.substring(0, pkname.length()-20);
+                    email = email.replaceAll("__AT_SIGN__", "@");
+                    users.add( email, JsonParser.parseString("{\"role\":\"user\"}").getAsJsonObject());
+                    encryptStringToFile("/etc/.portada_microservices/portada.users.json", "ADATROP_TERCES", users.toString());
                     ret = "{\"statusCode\":0, \"message\":\"The access key was approved. A new user has access to PAPI\"}";
                 }else{
                     //error no s'ha pogut renombrar la clau verificada
@@ -97,8 +107,13 @@ public class PortadaApi {
     @PostMapping(path="/pr/deleteKey")
     public String deleteKey(@RequestParam("team") String team, @RequestParam("pkname") String pkname,  @RequestParam("u") String adminuser, @RequestParam("p") String adminpas){
         String ret;
-        JsonObject users = JsonParser.parseString(decryptFileToString("/etc/.portada_microservices/gmail/portada.project.json", "ADATROP_TERCES")).getAsJsonObject();
-        if(users.get(adminuser).getAsJsonObject().get("rol").getAsString().equals("admin") && users.get(adminuser).getAsJsonObject().get("pas").getAsString().equals(adminpas)){
+        JsonObject users = JsonParser.parseString(decryptFileToString("/etc/.portada_microservices/portada.users.json", "ADATROP_TERCES")).getAsJsonObject();
+                if(users.get(adminuser)!=null 
+                && users.get(adminuser).getAsJsonObject().get("role")!=null 
+                && users.get(adminuser).getAsJsonObject().get("role").getAsString().equals("admin") 
+                && users.get(adminuser).getAsJsonObject().get("pas")!=null
+                && (users.get(adminuser).getAsJsonObject().get("pas").getAsString().equals(adminpas)
+                        || DigestUtils.md5Hex(users.get(adminuser).getAsJsonObject().get("pas").getAsString()).toUpperCase().equals(adminpas))){
             String verifiedKeyFileName = String.format("/etc/.portada_microservices/%s/verifiedAccessKeys/%s", team, pkname);
             File verifiedKeyFile = new File(verifiedKeyFileName);
             if(verifiedKeyFile.getParentFile().exists()){
@@ -124,6 +139,7 @@ public class PortadaApi {
     @PostMapping( path = "/verifyRequestedAcessPermission")
     public String verifyRequestedAccessPermission(@RequestParam("team") String team, @RequestParam("email") String email, @RequestParam("code") String code){
         String ret=null;
+        String messageForOk = null;
         String emailForPath = email.replaceAll("@", "__AT_SIGN__");
         String pathbase = String.format("/etc/.portada_microservices/%s/requestedAccessKeys/%s", team, emailForPath);
         String path = String.format("%s/%s/", pathbase, code);
@@ -135,8 +151,20 @@ public class PortadaApi {
                 Optional<Path> keyPath;
                 keyPath = Files.list(p).findFirst();
                 if(!keyPath.isEmpty()){
-                    //copiar la clau que hi ha en el directori
-                    String verifiedDir = String.format("/etc/.portada_microservices/%s/verifiedAccessKeys/", team);
+                    String verifiedDir;
+                    String mailMessageForAdminTemplate;
+                    JsonObject users = JsonParser.parseString(decryptFileToString("/etc/.portada_microservices/portada.users.json", "ADATROP_TERCES")).getAsJsonObject();
+                    if(users.get(email)!=null){
+                        //copiar la clau que hi ha en el directori
+                        verifiedDir = String.format("/etc/.portada_microservices/%s/approvedAccessKeys/", team);
+                        mailMessageForAdminTemplate = "The file %s belonging to team %s was approved because the e-mail associated was registered. Revise id and delete it i was necessari. Data is:\n\n-k %s -tm %s";
+                        messageForOk = "The access request was verified. You should already be able to access PAPI. If not, please contact with de PAPI administrator.";
+                    }else{
+                        //copiar la clau que hi ha en el directori
+                        verifiedDir = String.format("/etc/.portada_microservices/%s/verifiedAccessKeys/", team);
+                        mailMessageForAdminTemplate = "The file %s belonging to team %s was verified . Accept it o delete it. Data is:\n\n-k %s -tm %s";
+                        messageForOk = "The access request was verified. You will be able to access PAPI in a few days";                        
+                    }
                     File keyfile = keyPath.get().toFile();
                     String verifiedKeyFileName = String.format("%s_%s_%s" , emailForPath, code, keyfile.getName());
                     File verifiedKeyFile = new File(verifiedDir, verifiedKeyFileName);
@@ -155,7 +183,7 @@ public class PortadaApi {
 //                            mailSender = new MailSender(Files.readString(Paths.get("/etc/.jportada_microservices/gmail/portada.project.json")));
                         }
                         try {
-                            mailSender.sendMessageToAdmin("Access to PAPI request", String.format("The file %s belonging to team %s was verified . Accept it o delete it. Data is:\n\n-k %s -tm %s", verifiedKeyFileName, team, verifiedKeyFileName, team));
+                            mailSender.sendMessageToAdmin("Access to PAPI request", String.format(mailMessageForAdminTemplate, verifiedKeyFileName, team, verifiedKeyFileName, team));
                         } catch (MessagingException ex) {
                             //Proces correcte a excepciço de l'avís a l'adminimitrador. Cal avisar manualment a l'administrador.
                             ret = "{\"statusCode\":2, \"message\":\"Verification was successful, but there was an error trying to notify the administrator. You do not need to re-apply for access, but please email the administrator directly so that your permission can take effect.\"}";
@@ -176,7 +204,7 @@ public class PortadaApi {
         }
         if(existKeyPath && ret==null){
             //error message indicant team, email o codi incorrecte o temps expirat!
-            ret = "{\"statusCode\":0, \"message\":\"The access request was verified. You will be able to access PAPI in a few days\"}";
+            ret = "{\"statusCode\":0, \"message\":\"".concat(messageForOk).concat("\"}");
         }else if(ret==null){
             //error message indicant team, email o codi incorrecte o temps expirat!
             ret = "{\"statusCode\":1, \"message\":\"ERROR: The access request could't be verified. Maybe there is some incorrect data or the time has expired. Please resend a new request for accesing to PAPI.\"}";            
@@ -362,11 +390,11 @@ public class PortadaApi {
     }
     
     private static InputStream decryptFileToStream(String path, String secretEnvironment){
-        DecryptAes decryptAes;
+        EncryptDecryptAes decryptAes;
         String retDec;
         InputStream ret;
         try {
-            decryptAes = new DecryptAes();
+            decryptAes = new EncryptDecryptAes();
             retDec = decryptAes.decrypt(path, System.getenv(secretEnvironment));
             ret = new ByteArrayInputStream(retDec.getBytes());
         } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException | IllegalBlockSizeException | BadPaddingException ex) {
@@ -449,6 +477,10 @@ public class PortadaApi {
             Logger.getLogger(PortadaApi.class.getName()).log(Level.SEVERE, null, ex);
         }
         return new FileAndExtension(tmpImagePath, ext);
+    }
+
+    private void encryptStringToFile(String path, String keyToEncript, String json) {
+//        KeySpec spec = new PB(password.toCharArray(), salt, iterations, 256 + 128);
     }
     
     private static class FileAndExtension{
