@@ -458,11 +458,13 @@ public class PortadaApi {
     private void saveFile(MultipartFile file, String path) throws FileNotFoundException, IOException{
         File filePath = new File(path);
         if(!filePath.getParentFile().exists()){
-            filePath.getParentFile().mkdirs();
+            File parentFile= filePath.getParentFile();
+            parentFile.mkdirs();
         }
         try (OutputStream os = new FileOutputStream(filePath)) {
             os.write(file.getBytes());
         }
+        Runtime.getRuntime().exec("chmod -R -664 ".concat(filePath.getParentFile().getAbsolutePath()));
     }
     
     private FileAndExtension saveTmpImage(MultipartFile file){
