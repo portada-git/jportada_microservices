@@ -17,6 +17,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -24,7 +27,9 @@ import java.security.spec.InvalidKeySpecException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.crypto.BadPaddingException;
@@ -457,14 +462,28 @@ public class PortadaApi {
 
     private void saveFile(MultipartFile file, String path) throws FileNotFoundException, IOException{
         File filePath = new File(path);
-        if(!filePath.getParentFile().exists()){
-            File parentFile= filePath.getParentFile();
-            parentFile.mkdirs();
+        File parentFile = filePath.getParentFile();
+        boolean dirsCreated=parentFile.exists();
+        if(!dirsCreated){
+            parentFile= filePath.getParentFile();
+            dirsCreated = parentFile.mkdirs();
         }
-        try (OutputStream os = new FileOutputStream(filePath)) {
-            os.write(file.getBytes());
+        if(dirsCreated){
+            List<File> unwritableDirs = new ArrayList<>();
+            while(!parentFile.equals(new File("/etc/")) && !Files.getPosixFilePermissions(Paths.get(parentFile.getPath())).contains(PosixFilePermission.GROUP_WRITE)){
+                unwritableDirs.add(parentFile);
+                parentFile = parentFile.getParentFile();
+            }
+            for(int i=unwritableDirs.size()-1; i>=0; i--){
+                Files.setPosixFilePermissions(unwritableDirs.get(i).toPath(), PosixFilePermissions.fromString("rwxrwxr--"));
+            }
+            try (OutputStream os = new FileOutputStream(filePath)) {
+                os.write(file.getBytes());
+            }
+            Files.setPosixFilePermissions(filePath.toPath(), PosixFilePermissions.fromString("rw-rw-r--"));
+        }else{
+            //error
         }
-        Runtime.getRuntime().exec("chmod -R -664 ".concat(filePath.getParentFile().getAbsolutePath()));
     }
     
     private FileAndExtension saveTmpImage(MultipartFile file){
