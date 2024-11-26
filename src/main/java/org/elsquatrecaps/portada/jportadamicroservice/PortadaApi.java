@@ -267,7 +267,7 @@ public class PortadaApi {
     @PostMapping(path = "/fixBackTransparency")
     @ResponseBody
     public ResponseEntity<byte[]> fixTransparency(@RequestParam("image") MultipartFile file) {
-        byte[] ret;
+        ResponseEntity<byte[]> ret;
         FileAndExtension tmpImage = saveTmpImage(file);
 
         FixBackTransparencyTool prg = new FixBackTransparencyTool();
@@ -295,19 +295,17 @@ public class PortadaApi {
         }
 //        try(InputStream in = new FileInputStream(tmpImage.getFile())){
         try ( InputStream in = new TempFileInputStream(tmpImage.getFile())) {
-            ret = in.readAllBytes();
+            ret = ResponseEntity.ok().contentType(contentMediaType).body(in.readAllBytes());
         } catch (IOException ex) {
-            ret = new byte[0];
+            ret = ResponseEntity.status(420).header("Warning", ex.getMessage()).body(new byte[0]);
             Logger.getLogger(PortadaApi.class.getName()).log(Level.SEVERE, null, ex);
         }
-        return ResponseEntity.ok()
-                .contentType(contentMediaType)
-                .body(ret);
+        return ret;
     }
 
     @PostMapping(path = "/pr/ocr")
-    public String processOcr(@RequestParam("team") String team, @RequestParam("image") MultipartFile file) {
-        String ret;
+    public ResponseEntity<String> processOcr(@RequestParam("team") String team, @RequestParam("image") MultipartFile file) {
+        ResponseEntity<String> ret;
         FileAndExtension tmpImage = saveTmpImage(file);
 //        ProcessOcrDocument processor = new ProcessOcrDocument();
         try {
@@ -316,47 +314,52 @@ public class PortadaApi {
 //            processor.setCredentialsStream(decryptFileToStream(processor.getCredentialsPath()));
 //            processor.setFilePath(tmpImage.getFile().getAbsolutePath());
 //            processor.process();
-            ret = processor.getText();
+            ret = ResponseEntity.ok().contentType(MediaType.TEXT_PLAIN)
+                    .body(processor.getText());
             tmpImage.getFile().delete();
-        } catch (IOException ex) {
-            ret = "";
+        } catch (RuntimeException | IOException ex) {
+            ret = ResponseEntity.status(420)
+                    .contentType(MediaType.TEXT_PLAIN).header("Warning", ex.getMessage()).body("");            
             Logger.getLogger(PortadaApi.class.getName()).log(Level.SEVERE, null, ex);
+            tmpImage.getFile().delete();
         }
         return ret;
     }
 
-    @PostMapping(path = "/pr/ocrDocument")
-    public Document processOcrDocument(@RequestParam("team") String team, @RequestParam("image") MultipartFile file) {
-        Document ret;
-        FileAndExtension tmpImage = saveTmpImage(file);
-//        ProcessOcrDocument processor = new ProcessOcrDocument();
-        try {
-            ProcessOcrDocument processor = __runAndGetprocessOcr(team, tmpImage);
-//            processor.init(new File("/etc/.portada_microservices/").getCanonicalFile().getAbsolutePath(), team);
-//            processor.setCredentialsStream(decryptFileToStream(processor.getCredentialsPath()));
-//            processor.setFilePath(tmpImage.getFile().getAbsolutePath());
-//            processor.process();
-            ret = processor.getResult();
-            tmpImage.getFile().delete();
-        } catch (IOException ex) {
-            ret = null;
-            Logger.getLogger(PortadaApi.class.getName()).log(Level.SEVERE, null, ex);
-        }
-        return ret;
-    }
+//    @PostMapping(path = "/pr/ocrDocument")
+//    public Document processOcrDocument(@RequestParam("team") String team, @RequestParam("image") MultipartFile file) {
+//        Document ret;
+//        FileAndExtension tmpImage = saveTmpImage(file);
+////        ProcessOcrDocument processor = new ProcessOcrDocument();
+//        try {
+//            ProcessOcrDocument processor = __runAndGetprocessOcr(team, tmpImage);
+////            processor.init(new File("/etc/.portada_microservices/").getCanonicalFile().getAbsolutePath(), team);
+////            processor.setCredentialsStream(decryptFileToStream(processor.getCredentialsPath()));
+////            processor.setFilePath(tmpImage.getFile().getAbsolutePath());
+////            processor.process();
+//            ret = processor.getResult();
+//            tmpImage.getFile().delete();
+//        } catch (IOException ex) {
+//            ret = null;
+//            Logger.getLogger(PortadaApi.class.getName()).log(Level.SEVERE, null, ex);
+//        }
+//        return ret;
+//    }
 
     @PostMapping(path = "/pr/ocrJson")
-    public String processOcrJson(@RequestParam("team") String team, @RequestParam("image") MultipartFile file) {
-        String ret;
+    public ResponseEntity<String> processOcrJson(@RequestParam("team") String team, @RequestParam("image") MultipartFile file) {
+        ResponseEntity<String> ret;
         FileAndExtension tmpImage = saveTmpImage(file);
 //        ProcessOcrDocument processor = new ProcessOcrDocument();
         try {
             ProcessOcrDocument processor = __runAndGetprocessOcr(team, tmpImage);
-            ret = processor.getJsonString();
+            ret = ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(processor.getJsonString());
             tmpImage.getFile().delete();
         } catch (IOException ex) {
-            ret = "";
+            ret = ResponseEntity.status(420)
+                    .header("Warning", ex.getMessage()).body("");
             Logger.getLogger(PortadaApi.class.getName()).log(Level.SEVERE, null, ex);
+            tmpImage.getFile().delete();
         }
         return ret;
     }
@@ -365,7 +368,8 @@ public class PortadaApi {
         ProcessOcrDocument processor = new ProcessOcrDocument();
         processor.init(new File("/etc/.portada_microservices/").getCanonicalFile().getAbsolutePath(), team);
         processor.setCredentialsStream(decryptFileToStream(processor.getCredentialsPath()));
-        processor.setFilePath(tmpImage.getFile().getAbsolutePath());
+//        processor.init("../../Dropbox/feinesJordi/github/PortadaOcr", team);
+        processor.setFilePath(tmpImage.getFile().getAbsolutePath());        
         processor.process();
         return processor;
     }
