@@ -1,6 +1,7 @@
 package org.elsquatrecaps.portada.jportadamicroservice;
 
-import com.google.cloud.documentai.v1beta3.Document;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.BufferedReader;
@@ -8,6 +9,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -28,6 +30,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.crypto.BadPaddingException;
@@ -38,10 +41,19 @@ import javax.mail.internet.AddressException;
 import lombok.Data;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.text.RandomStringGenerator;
+import org.elsquatrecaps.autonewsextractor.dataextractor.parser.MainAutoNewsExtractorParser;
+import org.elsquatrecaps.autonewsextractor.model.MutableNewsExtractedData;
+import org.elsquatrecaps.autonewsextractor.model.NewsExtractedData;
+import org.elsquatrecaps.autonewsextractor.model.PublicationInfo;
+import org.elsquatrecaps.autonewsextractor.targetfragmentbreaker.cutter.TargetFragmentCutterProxyClass;
+import org.elsquatrecaps.autonewsextractor.tools.configuration.AutoNewsExtractorConfiguration;
+import org.elsquatrecaps.portada.boatfactextractor.BoatFactVersionUpdater;
 import org.elsquatrecaps.portada.jportadamicroservice.cypher.EncryptDecryptAes;
 import org.elsquatrecaps.portada.jportadamicroservice.files.TempFileInputStream;
 import org.elsquatrecaps.portada.portadaimagetools.FixBackTransparencyTool;
 import org.elsquatrecaps.portada.portadaocr.ProcessOcrDocument;
+import org.json.JSONObject;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -307,15 +319,10 @@ public class PortadaApi {
     public ResponseEntity<String> processOcr(@RequestParam("team") String team, @RequestParam("image") MultipartFile file) {
         ResponseEntity<String> ret;
         FileAndExtension tmpImage = saveTmpImage(file);
-//        ProcessOcrDocument processor = new ProcessOcrDocument();
         try {
             ProcessOcrDocument processor = __runAndGetprocessOcr(team, tmpImage);
-//            processor.init(new File("/etc/.portada_microservices/").getCanonicalFile().getAbsolutePath(), team);
-//            processor.setCredentialsStream(decryptFileToStream(processor.getCredentialsPath()));
-//            processor.setFilePath(tmpImage.getFile().getAbsolutePath());
-//            processor.process();
             ret = ResponseEntity.ok().contentType(MediaType.TEXT_PLAIN)
-                    .body(processor.getText());
+                    .body(processor.getParagraphs());
             tmpImage.getFile().delete();
         } catch (RuntimeException | IOException ex) {
             ret = ResponseEntity.status(420)
@@ -325,32 +332,11 @@ public class PortadaApi {
         }
         return ret;
     }
-
-//    @PostMapping(path = "/pr/ocrDocument")
-//    public Document processOcrDocument(@RequestParam("team") String team, @RequestParam("image") MultipartFile file) {
-//        Document ret;
-//        FileAndExtension tmpImage = saveTmpImage(file);
-////        ProcessOcrDocument processor = new ProcessOcrDocument();
-//        try {
-//            ProcessOcrDocument processor = __runAndGetprocessOcr(team, tmpImage);
-////            processor.init(new File("/etc/.portada_microservices/").getCanonicalFile().getAbsolutePath(), team);
-////            processor.setCredentialsStream(decryptFileToStream(processor.getCredentialsPath()));
-////            processor.setFilePath(tmpImage.getFile().getAbsolutePath());
-////            processor.process();
-//            ret = processor.getResult();
-//            tmpImage.getFile().delete();
-//        } catch (IOException ex) {
-//            ret = null;
-//            Logger.getLogger(PortadaApi.class.getName()).log(Level.SEVERE, null, ex);
-//        }
-//        return ret;
-//    }
-
+    
     @PostMapping(path = "/pr/ocrJson")
     public ResponseEntity<String> processOcrJson(@RequestParam("team") String team, @RequestParam("image") MultipartFile file) {
         ResponseEntity<String> ret;
         FileAndExtension tmpImage = saveTmpImage(file);
-//        ProcessOcrDocument processor = new ProcessOcrDocument();
         try {
             ProcessOcrDocument processor = __runAndGetprocessOcr(team, tmpImage);
             ret = ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(processor.getJsonString());
@@ -362,6 +348,162 @@ public class PortadaApi {
             tmpImage.getFile().delete();
         }
         return ret;
+    }
+    
+    @PostMapping(path="config_json_parsers_update_version")
+    public String updateVersionOfConfigJsonParsers(@RequestParam("news_paper") String newsPaper){
+        JSONObject ret = new JSONObject();
+        String configPath = String.format("/etc/.portada_microservices/extractor/conf_%s/extractor_config.json", newsPaper);
+        File configFile = new File(configPath);
+        
+        if(configFile.exists()){
+            try {
+                JSONObject jsonConfiguration = new JSONObject(Files.readString(configFile.toPath()));
+                BoatFactVersionUpdater.BoatFactVersionUpdaterResponse r = BoatFactVersionUpdater.tryToUpdate(jsonConfiguration);   
+                if(r.equals(BoatFactVersionUpdater.BoatFactVersionUpdaterResponse.JSON_UPDATED)){
+                    //save
+                    Files.writeString(
+                        Paths.get(configPath), 
+                        jsonConfiguration.toString(4)
+                    );
+                }
+                ret.put("statusCode", 0);
+                ret.put("response", r);
+            } catch (IOException ex) {
+                Logger.getLogger(PortadaApi.class.getName()).log(Level.SEVERE, null, ex);
+                //ERRROR
+                ret.put("statusCode", -1);
+                ret.put("response", String.format("{\"error\":true, \"message\":%s, \"exception\":%s}", 
+                                                            ex.getMessage(), 
+                                                            ex.getClass().getName()));
+            }
+        }else{
+            //ERROR
+                ret.put("statusCode", -2);
+                ret.put("response", String.format("{\"error\":true, \"message\":\"File config parser for news paper %s not found\"}", 
+                                                            newsPaper));
+        }    
+        return ret.toString();
+    }    
+
+    @PostMapping(path="get_extractor_properties")
+    public String getExtractorProperies(@RequestParam("news_paper") String newsPaper){
+        JSONObject ret= new JSONObject();
+        String configPath = String.format("/etc/.portada_microservices/extractor/conf_%s/init.properties", newsPaper);
+        File configFile = new File(configPath);
+        
+        if(configFile.exists()){
+            try {
+                AutoNewsExtractorConfiguration prop = new AutoNewsExtractorConfiguration();
+                prop.configure(configPath);
+                ret.put("statusCode", 0);
+                ret.put("response", serialize(prop));
+            } catch (IOException ex) {
+                Logger.getLogger(PortadaApi.class.getName()).log(Level.SEVERE, null, ex);
+                //ERRROR
+                ret.put("statusCode", -1);
+                ret.put("response", String.format("{\"error\":true, \"message\":%s, \"exception\":%s}", 
+                                                            ex.getMessage(), 
+                                                            ex.getClass().getName()));
+            }
+        }else{
+            //ERROR
+                ret.put("statusCode", -2);
+                ret.put("response", String.format("{\"error\":true, \"message\":\"File config parser for news paper %s not found\"}", 
+                                                            newsPaper));
+        }    
+        return ret.toString();
+    }    
+
+    @PostMapping(path="get_extractor_json_config_parser")
+    public String getExtractorJsonConfigParser(@RequestParam("news_paper") String newsPaper){
+        JSONObject ret= new JSONObject();
+        String configPath = String.format("/etc/.portada_microservices/extractor/conf_%s/extractor_config.json", newsPaper);
+        File configFile = new File(configPath);
+        
+        if(configFile.exists()){
+            try {
+                JSONObject prop = new JSONObject(Files.readString(configFile.toPath()));
+                ret.put("statusCode", 0);
+                ret.put("response", prop.toString());
+            } catch (IOException ex) {
+                Logger.getLogger(PortadaApi.class.getName()).log(Level.SEVERE, null, ex);
+                //ERRROR
+                ret.put("statusCode", -1);
+                ret.put("response", String.format("{\"error\":true, \"message\":%s, \"exception\":%s}", 
+                                                            ex.getMessage(), 
+                                                            ex.getClass().getName()));
+            }
+        }else{
+            //ERROR
+                ret.put("statusCode", -2);
+                ret.put("response", String.format("{\"error\":true, \"message\":\"File config parser for news paper %s not found\"}", 
+                                                            newsPaper));
+        }    
+        return ret.toString();
+    }    
+    
+    
+    @PostMapping(path = "pr/cutAndExtractFromText")
+    public ResponseEntity<String> processCutAndExtractFromText(
+            @RequestParam("team") String team, 
+            @RequestParam(name="text", required = true) String text, 
+            @RequestParam(name="parser_id", required = true) int parserId,
+            @RequestParam(name="publication_info", required=true) String strPublicationInfo,
+            @RequestParam(name="news_paper") Optional<String> newsPaper, 
+            @RequestParam(name="cfg_properties") Optional<AutoNewsExtractorConfiguration> configProperties,
+            @RequestParam(name="cfg_json_parsers") Optional<String> configJsonParsers){
+        AutoNewsExtractorConfiguration cfgProperties;
+        JSONObject cfgJsonParsers;
+        JSONObject response = new JSONObject("{\"statusCode\":0, \"message\":\"OK\", \"extractedlist\":[]}");
+        try {
+            PublicationInfo publicationInfo = new PublicationInfo(strPublicationInfo);
+            if(newsPaper.isPresent()){
+                String path = String.format("/etc/.portada_microservices/extractor/conf_%s/init.properties", newsPaper.get());
+                cfgProperties = new AutoNewsExtractorConfiguration();
+                cfgProperties.configure(new File(path).getAbsolutePath());
+            }else if(configProperties.isPresent()){
+                cfgProperties = configProperties.get();
+            }else{
+                //ERROR cfgProperties is not present
+                throw new IllegalArgumentException("ERROR: 'cfg_properties_file' or 'cfg_properties' parameters are required." );
+            }
+            Properties extractorServerProperties=new Properties();
+            extractorServerProperties.load(new FileReader("/etc/.portada_microservices/extractor/extractor.properties"));
+            cfgProperties.setRegexBasePath(extractorServerProperties.getProperty("regexBasePath"));                
+            cfgProperties.setRunForDebugging(false);
+            if(configJsonParsers.isPresent()){
+                // parse from parameter
+                cfgJsonParsers= new JSONObject(configJsonParsers.get());
+            }else{
+                //parse form path set in cfgProperties
+                String jsc = Files.readString(Paths.get(String.format("/etc/.portada_microservices/extractor/conf_%s/extractor_config.json", newsPaper.get())));
+                cfgJsonParsers= new JSONObject(jsc);
+            }
+            TargetFragmentCutterProxyClass cutter = TargetFragmentCutterProxyClass.getInstance(
+                    cfgProperties.getFragmentBreakerApproach(), cfgProperties);
+            MainAutoNewsExtractorParser parser = MainAutoNewsExtractorParser.getInstance(cfgProperties, cfgJsonParsers);  
+            String cutText = cutter.init(parserId).getTargetTextFromText(text);
+            List<NewsExtractedData> list = parser.parseFromString(cutText, parserId, publicationInfo);     
+            for(NewsExtractedData e: list){
+                response.getJSONArray("extractedlist").put(((MutableNewsExtractedData)e).getExtractedData());
+            }
+        } catch (IOException ex) {
+            //ERROR config file not found
+            response.put("statusCode", -1);
+            response.put("message", ex.getMessage());
+            Logger.getLogger(PortadaApi.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IllegalArgumentException ex) {
+            response.put("statusCode", -2);
+            response.put("message", ex.getMessage());
+            Logger.getLogger(PortadaApi.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (RuntimeException ex) {
+            //ERROR in parser or cutter
+            response.put("statusCode", -3);
+            response.put("message", ex.getMessage());
+            Logger.getLogger(PortadaApi.class.getName()).log(Level.SEVERE, null, ex);
+        }  
+        return new ResponseEntity<>(response.toString(), HttpStatus.OK);
     }
 
     private ProcessOcrDocument __runAndGetprocessOcr(String team, FileAndExtension tmpImage) throws IOException {
@@ -511,6 +653,17 @@ public class PortadaApi {
     private void encryptStringToFile(String path, String keyToEncript, String json) {
 //        KeySpec spec = new PB(password.toCharArray(), salt, iterations, 256 + 128);
     }
+    
+    private String serialize(Object value){
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            String ret = objectMapper.writeValueAsString(value);
+            return ret;
+        } catch (JsonProcessingException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
 
     private static class FileAndExtension {
 
@@ -547,5 +700,4 @@ public class PortadaApi {
             return message;
         }
     }
-
 }

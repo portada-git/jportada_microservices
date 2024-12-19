@@ -10,7 +10,7 @@
     </parent>
     <groupId>org.elsquatrecaps.portada</groupId>
     <artifactId>jportada_microservices</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.0.2-SNAPSHOT</version>
     <packaging>war</packaging>
     <name>jportadamicroservice</name>
     <description>Gateway of JAVA microservices for portada project</description>
@@ -20,62 +20,72 @@
         <maven.compiler.target>11</maven.compiler.target>
     </properties>
     <dependencies>
-            <dependency>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-starter-web</artifactId>
-            </dependency>
-            <dependency>
+        <dependency>
                 <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot</artifactId>
-            </dependency>
-            <dependency>
+                <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+        <dependency>
                 <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-autoconfigure</artifactId>
-            </dependency>
-            <dependency>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-starter-tomcat</artifactId>
-                    <scope>provided</scope>
-            </dependency>
-            <dependency>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-starter-test</artifactId>
-                    <scope>test</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.projectlombok</groupId>
-                <artifactId>lombok</artifactId>
-                <optional>true</optional>
-            </dependency>
-            <dependency>
-                <groupId>org.elsquatrecaps.portada.portadaimagetools</groupId>
-                <artifactId>jportada-image-tools</artifactId>
-                <version>[1.0-SNAPSHOT,)</version>
-            </dependency>
-            <dependency>
-                <groupId>org.bouncycastle</groupId>
-                <artifactId>bcprov-jdk15on</artifactId>
-                <version>1.70</version>
-            </dependency>
-            <dependency>
-                <groupId>org.elsquatrecaps.portada.portadaocr</groupId>
-                <artifactId>jportada_ocr</artifactId>
-                <version>[1.0-SNAPSHOT,)</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.commons</groupId>
-                <artifactId>commons-text</artifactId>
-                <version>1.12.0</version>
-            </dependency>
-            <dependency>
-                <groupId>com.sun.mail</groupId>
-                <artifactId>javax.mail</artifactId>
-                <version>1.6.2</version>
-            </dependency>
-            <!--dependency>
-                <groupId>jakarta.mail</groupId>
-                <artifactId>jakarta.mail-api</artifactId>
-            </dependency-->            
+                <artifactId>spring-boot-starter-test</artifactId>
+                <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.elsquatrecaps.portada.portadaimagetools</groupId>
+            <artifactId>jportada-image-tools</artifactId>
+            <version>[1.0-SNAPSHOT,)</version>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk15on</artifactId>
+            <version>1.70</version>
+        </dependency>
+        <dependency>
+            <groupId>org.elsquatrecaps.portada.portadaocr</groupId>
+            <artifactId>jportada_ocr</artifactId>
+            <version>[1.0-SNAPSHOT,)</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-text</artifactId>
+            <version>1.12.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.sun.mail</groupId>
+            <artifactId>javax.mail</artifactId>
+            <version>1.6.2</version>
+        </dependency>
+        <!--dependency>
+            <groupId>jakarta.mail</groupId>
+            <artifactId>jakarta.mail-api</artifactId>
+        </dependency-->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter-tomcat</artifactId>
+                <scope>provided</scope>
+        </dependency>    
+        <dependency>
+            <groupId>org.elsquatrecaps.portada.boatfactextractor</groupId>
+            <artifactId>boat_fact_extractor</artifactId>
+            <version>[1.1-SNAPSHOT,)</version>
+        </dependency>    
     </dependencies>
 
     <build>

@@ -3,14 +3,14 @@ package org.elsquatrecaps.portada.jportadamicroservice;
 import java.io.File;
 import java.io.FileReader;
 import org.springframework.stereotype.Component;
-import javax.servlet.FilterChain;
-import javax.servlet.Filter;
-import javax.servlet.FilterConfig;
-import javax.servlet.ServletException;
-import javax.servlet.ServletRequest;
-import javax.servlet.ServletResponse;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+//import jakarta.servlet.FilterChain;
+//import jakarta.servlet.Filter;
+//import jakarta.servlet.FilterConfig;
+//import jakarta.servlet.ServletException;
+//import jakarta.servlet.ServletRequest;
+//import jakarta.servlet.ServletResponse;
+//import jakarta.servlet.http.HttpServletRequest;
+//import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.security.InvalidKeyException;
@@ -25,11 +25,19 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Properties;
+import javax.servlet.Filter;
+import javax.servlet.FilterChain;
+import javax.servlet.FilterConfig;
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 @Component
 public class SignatureVerificationFilter implements Filter {
     private static final SecureRandom secureRandom = new SecureRandom();  // Generador aleatori segur
-    private transient HashMap<String, ArrayList<PublicKey>> publicKeys = new HashMap<>();
+    private final transient HashMap<String, ArrayList<PublicKey>> publicKeys = new HashMap<>();
 
     @Override
     public void init(FilterConfig filterConfig) throws ServletException {
@@ -121,7 +129,8 @@ public class SignatureVerificationFilter implements Filter {
                 challenge = Base64.getEncoder().encodeToString(challengeBytes);
 
                 // Emmagatzemar el challenge a la sessió del servidor o a un altre sistema per verificar-ho després
-                httpRequest.getSession().setAttribute("challenge", challenge);    
+                httpRequest.getSession().setAttribute("challenge", challenge);  
+                httpResponse.addHeader("X-challenge", challenge);
                 httpResponse.setContentType("application/json");
                 httpResponse.getWriter().write("{\"challenge\":\"" + challenge + "\"}");                
                 return;
