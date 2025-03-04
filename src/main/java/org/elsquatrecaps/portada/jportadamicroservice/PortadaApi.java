@@ -322,7 +322,7 @@ public class PortadaApi {
         try {
             ProcessOcrDocument processor = __runAndGetprocessOcr(team, tmpImage);
             ret = ResponseEntity.ok().contentType(MediaType.TEXT_PLAIN)
-                    .body(processor.getParagraphs());
+                    .body(processor.getText());
             tmpImage.getFile().delete();
         } catch (RuntimeException | IOException ex) {
             ret = ResponseEntity.status(420)
