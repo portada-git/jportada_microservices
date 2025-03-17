@@ -3,14 +3,6 @@ package org.elsquatrecaps.portada.jportadamicroservice;
 import java.io.File;
 import java.io.FileReader;
 import org.springframework.stereotype.Component;
-//import jakarta.servlet.FilterChain;
-//import jakarta.servlet.Filter;
-//import jakarta.servlet.FilterConfig;
-//import jakarta.servlet.ServletException;
-//import jakarta.servlet.ServletRequest;
-//import jakarta.servlet.ServletResponse;
-//import jakarta.servlet.http.HttpServletRequest;
-//import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.security.InvalidKeyException;
@@ -38,6 +30,7 @@ import javax.servlet.http.HttpServletResponse;
 public class SignatureVerificationFilter implements Filter {
     private static final SecureRandom secureRandom = new SecureRandom();  // Generador aleatori segur
     private final transient HashMap<String, ArrayList<PublicKey>> publicKeys = new HashMap<>();
+    private static String defaultChallenge;
 
     @Override
     public void init(FilterConfig filterConfig) throws ServletException {
@@ -48,6 +41,7 @@ public class SignatureVerificationFilter implements Filter {
             String publicKeyBasePath = properties.getProperty("publicKeyBasePath");
             String publicKeydirName = properties.getProperty("publicKeydirName");
             String[] teams = properties.getProperty("teams").split(",");
+            defaultChallenge = properties.getProperty("papicli_access_signature_data");
             for(String team: teams){
                 ArrayList<PublicKey> pkt = new ArrayList<>();
                 publicKeys.put(team, pkt);
@@ -70,6 +64,7 @@ public class SignatureVerificationFilter implements Filter {
             properties.load(new FileReader("/etc/.portada_microservices/papi_access.properties"));
             String publicKeyBasePath = properties.getProperty("publicKeyBasePath");
             String publicKeydirName = properties.getProperty("publicKeydirName");
+            defaultChallenge = properties.getProperty("papicli_access_signature_data");
             ArrayList<PublicKey> pkt = new ArrayList<>();
             publicKeys.put(team, pkt);
             File teamPath = new File(new File(publicKeyBasePath, team), publicKeydirName);
@@ -104,9 +99,18 @@ public class SignatureVerificationFilter implements Filter {
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
         HttpServletRequest httpRequest = (HttpServletRequest) request;
         HttpServletResponse httpResponse = (HttpServletResponse) response;
+        String challenge;
 
         String signature = httpRequest.getHeader("X-Signature");
-        String challenge = (String) httpRequest.getSession().getAttribute("challenge");
+        challenge = (String) httpRequest.getSession().getAttribute("challenge");
+        if(challenge==null){
+            challenge = httpRequest.getHeader("X-Challenge");
+             httpRequest.getSession().setAttribute("challenge", challenge);  
+        }
+        if(challenge==null){
+            challenge=defaultChallenge;
+            httpRequest.getSession().setAttribute("challenge", challenge);  
+        }
         
         if(!httpRequest.getServletPath().equals("/") && !httpRequest.getServletPath().equals("/requestAccessPermission")
                 && !httpRequest.getServletPath().equals("/verifyRequestedAcessPermission")
@@ -132,7 +136,8 @@ public class SignatureVerificationFilter implements Filter {
                 httpRequest.getSession().setAttribute("challenge", challenge);  
                 httpResponse.addHeader("X-challenge", challenge);
                 httpResponse.setContentType("application/json");
-                httpResponse.getWriter().write("{\"challenge\":\"" + challenge + "\"}");                
+                httpResponse.getWriter().write("{\"challenge\":\"" + challenge + "\"}");   
+                httpResponse.flushBuffer();
                 return;
             }
         }

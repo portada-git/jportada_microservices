@@ -38,6 +38,7 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.mail.MessagingException;
 import javax.mail.internet.AddressException;
+import javax.servlet.http.HttpServletRequest;
 import lombok.Data;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.text.RandomStringGenerator;
@@ -53,6 +54,7 @@ import org.elsquatrecaps.portada.jportadamicroservice.files.TempFileInputStream;
 import org.elsquatrecaps.portada.portadaimagetools.FixBackTransparencyTool;
 import org.elsquatrecaps.portada.portadaocr.ProcessOcrDocument;
 import org.json.JSONObject;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -70,6 +72,9 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 public class PortadaApi {
 
+    @Autowired
+    private HttpServletRequest httpServletRequest;
+    
     private static final char[][] CHAR_PAIRS = {{'0', '9'}, {'a', 'z'}, {'_', '_'}, {'A', 'Z'}};
     //public static final MailSender mailSender=new MailSender(decryptFileToString("/etc/.jportada_microservices/gmail/portada.project.json", "IATNEMUCOD_TERCES"));
     public static MailSender mailSender;
@@ -456,6 +461,8 @@ public class PortadaApi {
         AutoNewsExtractorConfiguration cfgProperties;
         JSONObject cfgJsonParsers;
         JSONObject response = new JSONObject("{\"statusCode\":0, \"message\":\"OK\", \"extractedlist\":[]}");
+        String s =this.httpServletRequest.getHeader("X-Signature");
+        String c =(String) this.httpServletRequest.getSession().getAttribute("challenge");
         try {
             PublicationInfo publicationInfo = new PublicationInfo(strPublicationInfo);
             if(newsPaper.isPresent()){
@@ -472,6 +479,7 @@ public class PortadaApi {
             extractorServerProperties.load(new FileReader("/etc/.portada_microservices/extractor/extractor.properties"));
             cfgProperties.setRegexBasePath(extractorServerProperties.getProperty("regexBasePath"));                
             cfgProperties.setRunForDebugging(false);
+            cfgProperties.setCostCenter(team);
             if(configJsonParsers.isPresent()){
                 // parse from parameter
                 cfgJsonParsers= new JSONObject(configJsonParsers.get());
@@ -483,6 +491,7 @@ public class PortadaApi {
             TargetFragmentCutterProxyClass cutter = TargetFragmentCutterProxyClass.getInstance(
                     cfgProperties.getFragmentBreakerApproach(), cfgProperties);
             MainAutoNewsExtractorParser parser = MainAutoNewsExtractorParser.getInstance(cfgProperties, cfgJsonParsers);  
+            parser.init(c, s);
             String cutText = cutter.init(parserId).getTargetTextFromText(text);
             List<NewsExtractedData> list = parser.parseFromString(cutText, parserId, publicationInfo);     
             for(NewsExtractedData e: list){
