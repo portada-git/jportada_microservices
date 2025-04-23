@@ -320,6 +320,29 @@ public class PortadaApi {
         return ret;
     }
 
+    @PostMapping(path = "/pr/ocr_txt_and_json")
+    public ResponseEntity<String> processOcrTxtAndJson(@RequestParam("team") String team, @RequestParam("image") MultipartFile file) {
+        ResponseEntity<String> ret;
+        JSONObject jsonRet = new JSONObject();
+        FileAndExtension tmpImage = saveTmpImage(file);
+        try {
+            ProcessOcrDocument processor = __runAndGetprocessOcr(team, tmpImage);
+            jsonRet.put("status", 0);
+            jsonRet.put("data", new JSONObject());
+            jsonRet.getJSONObject("data").put("txt", processor.getText());
+            jsonRet.getJSONObject("data").put("json", new JSONObject(processor.getJsonString()));
+            ret = ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON)
+                    .body(jsonRet.toString());
+            tmpImage.getFile().delete();
+        } catch (RuntimeException | IOException ex) {
+            ret = ResponseEntity.status(420)
+                    .contentType(MediaType.APPLICATION_JSON).header("Warning", ex.getMessage()).body(String.format("{\"status\":-1, \"error\":true, \"message\":\"%s\"}", ex.getMessage()));            
+            Logger.getLogger(PortadaApi.class.getName()).log(Level.SEVERE, null, ex);
+            tmpImage.getFile().delete();
+        }
+        return ret;
+    }
+
     @PostMapping(path = "/pr/ocr")
     public ResponseEntity<String> processOcr(@RequestParam("team") String team, @RequestParam("image") MultipartFile file) {
         ResponseEntity<String> ret;
