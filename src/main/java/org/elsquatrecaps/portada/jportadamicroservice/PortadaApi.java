@@ -575,14 +575,26 @@ public class PortadaApi {
     private static InputStream decryptFileToStream(String path) {
         return decryptFileToStream(path, "IATNEMUCOD_TERCES");
     }
+    
+    private static String getSecretEnvFromFile(String secretEnvironment) throws IOException{
+        Properties p = new Properties();
+        try(FileReader fr = new FileReader("/etc/environment")){
+            p.load(fr);
+        }
+        return p.getProperty(secretEnvironment);
+    }
 
     private static InputStream decryptFileToStream(String path, String secretEnvironment) {
         EncryptDecryptAes decryptAes;
         String retDec;
         InputStream ret;
         try {
+            String secret = System.getenv(secretEnvironment);
+            if(secret==null){
+                secret = getSecretEnvFromFile(secretEnvironment);
+            }
             decryptAes = new EncryptDecryptAes();
-            retDec = decryptAes.decrypt(path, System.getenv(secretEnvironment));
+            retDec = decryptAes.decrypt(path, secret);
             ret = new ByteArrayInputStream(retDec.getBytes());
         } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException | IllegalBlockSizeException | BadPaddingException ex) {
             throw new RuntimeException(ex);
