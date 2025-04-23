@@ -69,7 +69,7 @@ public class EncryptDecryptAes {
     public String decrypt(String encryptedFilePath, String secret) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException{
         byte[] fileContent = Files.readAllBytes(Paths.get(encryptedFilePath));
 
-//        System.out.println("s:" + secret);
+        System.out.println("s:" + secret);
         
         // Check for OpenSSL header "Salted__"
         byte[] saltHeader = Arrays.copyOfRange(fileContent, 0, 8);
