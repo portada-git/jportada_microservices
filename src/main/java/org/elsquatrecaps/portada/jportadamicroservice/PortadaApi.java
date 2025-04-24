@@ -581,7 +581,7 @@ public class PortadaApi {
         try(FileReader fr = new FileReader("/etc/environment")){
             p.load(fr);
         }
-        return p.getProperty(secretEnvironment);
+        return p.getProperty(secretEnvironment).replaceAll("^\"?(.*?)\"?$", "$1");
     }
 
     private static InputStream decryptFileToStream(String path, String secretEnvironment) {
