@@ -670,6 +670,9 @@ public class PortadaApi {
             Files.setPosixFilePermissions(filePath.toPath(), PosixFilePermissions.fromString("rw-rw-r--"));
         } else {
             //error
+            String message = "Needed subfolders can not be created.";
+            Logger.getLogger(PortadaApi.class.getName()).log(Level.SEVERE, null, message);
+            throw new IOException(message.concat(" Please contact with the adminitrator."));
         }
     }
 
