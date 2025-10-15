@@ -601,6 +601,31 @@ public class PortadaApi {
         }
         return ret;
     }
+    
+    private void encryptStringToFile(String path, String secretEnvironment, String json) {
+        EncryptDecryptAes encryptAes;
+        this.saveOldCopy(path);
+        try {
+            String pass = System.getenv(secretEnvironment);
+            if(pass==null){
+                pass = getSecretEnvFromFile(secretEnvironment);
+            }
+            encryptAes = new EncryptDecryptAes();
+            encryptAes.encrypt(json, path, pass);
+        } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException | IllegalBlockSizeException | BadPaddingException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+    
+    private void saveOldCopy(String path){
+        File f = new File(path);
+        File fc = new File(path.concat(".old"));
+        if (fc.exists()){
+            fc.delete();
+        }
+        f.renameTo(fc);
+        
+    }
 
     private static boolean deleteOldAccessRequest(String path, String requestedAccessKeysDir) {
         boolean ret = true;
@@ -695,10 +720,6 @@ public class PortadaApi {
             Logger.getLogger(PortadaApi.class.getName()).log(Level.SEVERE, null, ex);
         }
         return new FileAndExtension(tmpImagePath, ext);
-    }
-
-    private void encryptStringToFile(String path, String keyToEncript, String json) {
-//        KeySpec spec = new PB(password.toCharArray(), salt, iterations, 256 + 128);
     }
     
     private String serialize(Object value){
